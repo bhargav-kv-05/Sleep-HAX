@@ -1,35 +1,28 @@
-# Sleep-HAX
+# 🌙 SleepHAX
+**AI safety and efficacy scoring for viral sleep hacks.**
 
-This is a [Next.js](https://nextjs.org) project bootstrapped with [v0](https://v0.app).
+## 🚨 The Problem
+At 2:00 AM, desperate sleepers turn to TikTok, Instagram, and Reddit for remedies. From "mouth taping" to "magnesium glycinate" and the "military sleep method," the internet is flooded with advice. The problem? There is no quick, objective way to filter clinical truth from dangerous internet noise without reading dense medical journals. 
 
-## Built with v0
+## 💡 The Solution
+SleepHAX is an AI-powered credibility engine designed to cure late-night analysis paralysis. Users simply type in a viral sleep trend, and the system evaluates it against strict clinical parameters to generate a clean, objective **Credibility Card**.
 
-This repository is linked to a [v0](https://v0.app) project. You can continue developing by visiting the link below -- start new chats to make changes, and v0 will push commits directly to this repo. Every merge to `main` will automatically deploy.
+**Core Features (MVP):**
+* 🧠 **AI Analyzer:** Rapidly evaluates sleep hacks using a strict system prompt.
+* 📊 **Safety & Efficacy Scoring:** Generates easy-to-read progress bars for clinical safety and actual effectiveness.
+* 🛡️ **Medical Consensus Badges:** Immediately flags if a hack is "Strongly Supported," "Anecdotal," or "Potentially Unsafe."
+* 📓 **Sleep Journal (Upcoming):** Securely save tested hacks and track morning-after results.
 
-[Continue working on v0 →](https://v0.app/chat/projects/prj_a0KBsKRNiJBLMt4jrnS8bG2uEVPx)
+## 🛠️ Tech Stack
+* **Frontend:** Next.js (App Router), React, Tailwind CSS
+* **UI Components:** v0, shadcn/ui
+* **Database & Auth:** Supabase (PostgreSQL)
+* **AI Engine:** Google Gemini / OpenAI API
+* **Deployment:** Vercel
 
-## Getting Started
+## 🚀 Getting Started (Local Development)
 
-First, run the development server:
-
+### 1. Clone the repository
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-## Learn More
-
-To learn more, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-- [v0 Documentation](https://v0.app/docs) - learn about v0 and how to use it.
-
-<a href="https://v0.app/chat/api/kiro/clone/bhargav-kv-05/Sleep-HAX" alt="Open in Kiro"><img src="https://pdgvvgmkdvyeydso.public.blob.vercel-storage.com/open%20in%20kiro.svg?sanitize=true" /></a>
+git clone [https://github.com/your-username/SleepHAX.git](https://github.com/your-username/SleepHAX.git)
+cd SleepHAX
