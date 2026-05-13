@@ -13,59 +13,45 @@ const QUICK_PRESETS = [
   'Military Sleep Method',
 ]
 
-const MOCK_ANALYSES = {
-  'mouth taping': {
-    hack: 'Mouth Taping',
-    consensus: 'mixed' as const,
-    safetyScore: 7,
-    efficacyScore: 5,
-    verdict:
-      'Mouth taping shows promise for improving sleep quality and reducing snoring by promoting nasal breathing. However, clinical evidence is limited, and it carries potential risks for individuals with sleep apnea or respiratory conditions. Always consult a healthcare provider before trying this technique, especially if you have underlying breathing disorders.',
-  },
-  'ashwagandha': {
-    hack: 'Ashwagandha',
-    consensus: 'supported' as const,
-    safetyScore: 8,
-    efficacyScore: 7,
-    verdict:
-      'Ashwagandha has strong clinical support for reducing anxiety and improving sleep quality. Multiple peer-reviewed studies show it can lower cortisol levels and improve sleep latency. It&apos;s generally well-tolerated with minimal side effects, making it one of the most evidence-backed natural sleep aids available.',
-  },
-  'military sleep method': {
-    hack: 'Military Sleep Method',
-    consensus: 'limited' as const,
-    safetyScore: 9,
-    efficacyScore: 6,
-    verdict:
-      'The military sleep technique (also called the "4-7-8" method) is a relaxation technique with limited but promising research. It&apos;s completely safe and involves controlled breathing patterns. While not universally effective, many users report faster sleep onset when practiced consistently. Best used as part of a broader sleep hygiene routine.',
-  },
-}
-
 export default function Home() {
   const [searchInput, setSearchInput] = useState('')
-  const [currentAnalysis, setCurrentAnalysis] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState<any>(null)
+  const [error, setError] = useState<string | null>(null)
 
-  const handleSearch = () => {
-    const normalized = searchInput.toLowerCase().trim()
-    if (MOCK_ANALYSES[normalized as keyof typeof MOCK_ANALYSES]) {
-      setCurrentAnalysis(normalized)
+  const handleAnalyze = async (hackToAnalyze?: string) => {
+    const hack = typeof hackToAnalyze === 'string' ? hackToAnalyze : searchInput
+    if (!hack.trim()) return
+
+    setSearchInput(hack)
+    setLoading(true)
+    setError(null)
+    setResult(null)
+    
+    try {
+      const response = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hack }),
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to analyze hack')
+      }
+      setResult(data)
+    } catch (err: any) {
+      console.error('Failed to analyze hack:', err)
+      setError(err.message || 'An unexpected error occurred')
+    } finally {
+      setLoading(false)
     }
-  }
-
-  const handlePreset = (preset: string) => {
-    const normalized = preset.toLowerCase()
-    setSearchInput(preset)
-    setCurrentAnalysis(normalized)
   }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      handleSearch()
+      handleAnalyze()
     }
   }
-
-  const activeAnalysis = currentAnalysis
-    ? MOCK_ANALYSES[currentAnalysis as keyof typeof MOCK_ANALYSES]
-    : null
 
   return (
     <div className="min-h-screen bg-background">
@@ -96,11 +82,12 @@ export default function Home() {
               <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground pointer-events-none" />
             </div>
             <Button
-              onClick={handleSearch}
+              onClick={() => handleAnalyze()}
+              disabled={loading}
               size="lg"
-              className="h-14 px-8 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold whitespace-nowrap transition-all duration-200"
+              className="h-14 px-8 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold whitespace-nowrap transition-all duration-200 disabled:opacity-50"
             >
-              Analyze
+              {loading ? 'Analyzing...' : 'Analyze'}
             </Button>
           </div>
 
@@ -110,8 +97,9 @@ export default function Home() {
             {QUICK_PRESETS.map((preset) => (
               <button
                 key={preset}
-                onClick={() => handlePreset(preset)}
-                className="px-4 py-2 rounded-full text-sm font-medium bg-secondary/40 text-foreground hover:bg-secondary/60 border border-border transition-all duration-200 hover:border-primary/50"
+                onClick={() => handleAnalyze(preset)}
+                disabled={loading}
+                className="px-4 py-2 rounded-full text-sm font-medium bg-secondary/40 text-foreground hover:bg-secondary/60 border border-border transition-all duration-200 hover:border-primary/50 disabled:opacity-50"
               >
                 {preset}
               </button>
@@ -120,15 +108,24 @@ export default function Home() {
         </div>
 
         {/* Analysis Card */}
-        {activeAnalysis && (
+        {result && (
           <AnalysisCard
-            {...activeAnalysis}
-            isVisible={!!activeAnalysis}
+            {...result}
+            isVisible={!!result}
           />
         )}
 
+        {/* Error State */}
+        {error && (
+          <div className="mt-16 text-center py-12 border border-red-500/50 rounded-2xl bg-red-500/10">
+            <p className="text-lg text-red-500 font-medium">
+              {error}
+            </p>
+          </div>
+        )}
+
         {/* Empty State */}
-        {!activeAnalysis && (
+        {!result && !loading && !error && (
           <div className="mt-16 text-center py-12 border border-dashed border-border rounded-2xl bg-secondary/10">
             <p className="text-lg text-muted-foreground">
               Search for a sleep hack or click a preset to get started.

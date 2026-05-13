@@ -6,8 +6,8 @@ import { ConsensusBadge } from '@/components/consensus-badge'
 import { Bookmark } from 'lucide-react'
 
 interface AnalysisCardProps {
-  hack: string
-  consensus: 'mixed' | 'supported' | 'limited' | 'insufficient'
+  title: string
+  badge: string
   safetyScore: number
   efficacyScore: number
   verdict: string
@@ -15,8 +15,8 @@ interface AnalysisCardProps {
 }
 
 export function AnalysisCard({
-  hack,
-  consensus,
+  title,
+  badge,
   safetyScore,
   efficacyScore,
   verdict,
@@ -43,11 +43,11 @@ export function AnalysisCard({
       {/* Badge */}
       <div className="flex justify-between items-start mb-6">
         <div />
-        <ConsensusBadge status={consensus} />
+        <ConsensusBadge status={badge} />
       </div>
 
       {/* Title */}
-      <h2 className="text-3xl font-bold text-foreground mb-8">{hack}</h2>
+      <h2 className="text-3xl font-bold text-foreground mb-8">{title}</h2>
 
       {/* Metrics Section */}
       <div className="space-y-8 mb-8">
