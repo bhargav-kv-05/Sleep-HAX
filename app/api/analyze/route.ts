@@ -16,18 +16,21 @@ export async function POST(request: Request) {
         // We use the fast flash model for rapid MVP responses
         const model = genAI.getGenerativeModel({
             model: 'gemini-2.5-flash',
-            generationConfig: { responseMimeType: "application/json" }
+            // @ts-ignore: The SDK types require googleSearchRetrieval but the backend API expects googleSearch
+            tools: [{ googleSearch: {} }]
         });
 
         const systemPrompt = `
-      You are the SleepHAX Clinical Analysis Engine. Evaluate the following sleep hack: "${hack}".
+      You are the SleepHAX Clinical Analysis Engine. 
+      Use Google Search to find current clinical consensus and recent discussions on Reddit (r/sleep or r/insomnia) to evaluate the following sleep hack: "${hack}".
       You must respond ONLY with a valid JSON object matching this exact schema. 
       {
         "title": "String (The formalized name of the sleep hack)",
         "badge": "String (Must be one of: 'Strongly Supported', 'Mixed Evidence', 'Limited Evidence', 'Anecdotal', or 'Potentially Unsafe')",
         "safetyScore": "Number (1 to 10, 10 being perfectly safe)",
         "efficacyScore": "Number (1 to 10, 10 being highly effective)",
-        "verdict": "String (A 2-3 sentence objective, clinical summary of risks and benefits)"
+        "verdict": "String (A 2-3 sentence objective, clinical summary of risks and benefits based on your search)",
+        "sources": ["Array of Strings (URLs of the Reddit threads or clinical sites you sourced this from)"]
       }
     `;
 
@@ -43,8 +46,8 @@ export async function POST(request: Request) {
 
         return NextResponse.json(data);
 
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error analyzing sleep hack:', error);
-        return NextResponse.json({ error: 'Failed to analyze the sleep hack.' }, { status: 500 });
+        return NextResponse.json({ error: error.message || 'Failed to analyze the sleep hack.' }, { status: 500 });
     }
 }

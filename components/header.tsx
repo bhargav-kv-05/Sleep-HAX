@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { Moon } from 'lucide-react'
 import { createClient } from '@/utils/supabase/server'
-import { SignOutButton } from './sign-out-button'
+import { UserMenu } from './user-menu'
 
 export async function Header() {
   const supabase = await createClient()
@@ -22,7 +22,7 @@ export async function Header() {
               <span className="text-sm font-medium text-slate-300 hidden sm:inline-block">
                 Hi, {user.user_metadata?.full_name || 'Sleep Hacker'}!
               </span>
-              <SignOutButton />
+              <UserMenu user={user} />
             </>
           ) : (
             <Link 
