@@ -5,7 +5,7 @@ import { logSleepAction } from './actions'
 import { createClient } from '@/utils/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Eye, EyeOff, CheckCircle2, Lock, Bed, History, AlertCircle } from 'lucide-react'
+import { Eye, EyeOff, CheckCircle2, Lock, Bed, History, AlertCircle, Sparkles } from 'lucide-react'
 
 // Pass down user metadata and sleep logs
 export default function ProfileClient({ 
@@ -28,6 +28,11 @@ export default function ProfileClient({
   // Journal State
   const [logLoading, setLogLoading] = useState(false)
   const [logMessage, setLogMessage] = useState<{type: 'success'|'error', text: string} | null>(null)
+
+  // AI Insights State
+  const [insightsLoading, setInsightsLoading] = useState(false)
+  const [insights, setInsights] = useState<{ praise: string, analysis: string, recommendation: string } | null>(null)
+  const [insightsError, setInsightsError] = useState('')
 
   const supabase = createClient()
 
@@ -64,6 +69,26 @@ export default function ProfileClient({
       if (form) form.reset()
     }
     setLogLoading(false)
+  }
+
+  const handleGenerateInsights = async () => {
+    if (sleepLogs.length === 0) return;
+    setInsightsLoading(true)
+    setInsightsError('')
+    try {
+      const res = await fetch('/api/insights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sleepLogs })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setInsights(data)
+    } catch (error: any) {
+      setInsightsError(error.message || 'An error occurred.')
+    } finally {
+      setInsightsLoading(false)
+    }
   }
 
   return (
@@ -162,7 +187,58 @@ export default function ProfileClient({
               </Button>
             </form>
 
-            <div className="pt-6">
+            {/* AI Insights Section */}
+            {sleepLogs.length > 0 && (
+              <div className="pt-8 pb-4 border-b border-slate-800">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                  <div>
+                    <h3 className="text-xl font-bold text-white flex items-center gap-2 mb-1">
+                      <Sparkles className="w-5 h-5 text-cyan-400" /> AI Sleep Insights
+                    </h3>
+                    <p className="text-sm text-slate-400">Discover patterns hidden in your journal.</p>
+                  </div>
+                  <Button 
+                    onClick={handleGenerateInsights}
+                    disabled={insightsLoading}
+                    className="bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-slate-700 w-full sm:w-auto h-11"
+                  >
+                    {insightsLoading ? 'Analyzing...' : insights ? 'Refresh Insights' : 'Generate Insights'}
+                  </Button>
+                </div>
+
+                {insightsError && (
+                  <div className="p-4 mb-6 rounded-xl text-sm font-medium border bg-red-500/10 text-red-400 border-red-500/20">
+                    {insightsError}
+                  </div>
+                )}
+
+                {insights && (
+                  <div className="bg-gradient-to-br from-slate-900 to-slate-950 border border-cyan-500/30 p-6 sm:p-8 rounded-2xl shadow-lg relative overflow-hidden mb-2 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div className="absolute top-0 left-0 w-1 h-full bg-cyan-500"></div>
+                    
+                    {insights.praise && (
+                      <div className="mb-6 inline-block bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-4 py-2 rounded-full text-sm font-semibold">
+                        ✨ {insights.praise}
+                      </div>
+                    )}
+                    
+                    <h4 className="text-lg font-semibold text-white mb-2">Pattern Analysis</h4>
+                    <p className="text-slate-300 text-base leading-relaxed mb-8">
+                      {insights.analysis}
+                    </p>
+                    
+                    <h4 className="text-lg font-semibold text-white mb-3">Recommendation</h4>
+                    <div className="bg-cyan-500/10 border border-cyan-500/20 p-5 rounded-xl">
+                      <p className="text-cyan-300 text-base font-medium leading-relaxed">
+                        {insights.recommendation}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="pt-2">
               <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
                 <History className="w-5 h-5 text-cyan-400" /> Recent History
               </h3>
