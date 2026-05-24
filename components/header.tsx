@@ -25,9 +25,11 @@ export async function Header() {
           <Link href="/" className="text-slate-300 hover:text-cyan-400 transition-colors">
             Home
           </Link>
-          <Link href="/profile" className="text-slate-300 hover:text-cyan-400 transition-colors">
-            My Journal
-          </Link>
+          {user && (
+            <Link href="/profile" className="text-slate-300 hover:text-cyan-400 transition-colors">
+              My Journal
+            </Link>
+          )}
         </nav>
 
         {/* Right: Auth & Profile */}
@@ -42,9 +44,9 @@ export async function Header() {
           ) : (
             <Link 
               href="/login" 
-              className="px-4 py-1.5 text-sm bg-cyan-600 hover:bg-cyan-500 text-white font-medium rounded-lg transition-colors shadow-sm whitespace-nowrap"
+              className="px-5 py-2 text-sm bg-cyan-600 hover:bg-cyan-500 text-white font-semibold rounded-lg transition-colors shadow-sm whitespace-nowrap"
             >
-              Login / Journal
+              Sign In
             </Link>
           )}
         </div>

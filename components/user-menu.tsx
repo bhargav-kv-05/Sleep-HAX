@@ -33,8 +33,8 @@ export function UserMenu({ user }: { user: any }) {
   const handleSignOut = async () => {
     setLoading(true)
     await supabase.auth.signOut()
-    router.refresh()
-    // It's a server component so refresh will clear the state
+    // Force a hard reload to clear all client-side React state (like search results)
+    window.location.href = '/'
   }
 
   return (

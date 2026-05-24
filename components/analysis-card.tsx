@@ -3,7 +3,7 @@
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { ConsensusBadge } from '@/components/consensus-badge'
-import { Bookmark } from 'lucide-react'
+import { Bookmark, ArrowUp, MessageSquare } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
 interface AnalysisCardProps {
@@ -13,6 +13,7 @@ interface AnalysisCardProps {
   efficacyScore: number
   verdict: string
   sources?: string[]
+  liveRedditThreads?: any[]
   isVisible: boolean
 }
 
@@ -23,6 +24,7 @@ export function AnalysisCard({
   efficacyScore,
   verdict,
   sources,
+  liveRedditThreads,
   isVisible,
 }: AnalysisCardProps) {
   const router = useRouter()
@@ -97,40 +99,86 @@ export function AnalysisCard({
         </p>
 
         {/* Live Search Sources */}
+        {/* Guaranteed Live Reddit Threads */}
+        {liveRedditThreads && liveRedditThreads.length > 0 && (
+          <div className="bg-secondary/20 rounded-xl p-4 border border-border mt-4">
+            <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+              <MessageSquare className="w-4 h-4 text-[#FF4500]" />
+              Live Reddit Discussions
+            </h4>
+            <ul className="space-y-3">
+              {liveRedditThreads.map((thread: any, idx: number) => (
+                <li key={idx}>
+                  <a 
+                    href={thread.url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="block group"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="flex flex-col items-center min-w-[36px] bg-background/50 rounded px-1 py-1 border border-border/50">
+                        <ArrowUp className="w-3 h-3 text-slate-400 group-hover:text-[#FF4500] transition-colors" />
+                        <span className="text-[10px] font-bold text-slate-300 mt-0.5">
+                          {thread.upvotes > 999 ? `${(thread.upvotes / 1000).toFixed(1)}k` : thread.upvotes}
+                        </span>
+                      </div>
+                      <div>
+                        <h5 className="text-sm font-medium text-slate-200 group-hover:text-cyan-400 transition-colors line-clamp-2 leading-snug">
+                          {thread.title}
+                        </h5>
+                        <p className="text-xs text-slate-500 mt-1 font-medium">
+                          {thread.subreddit}
+                        </p>
+                      </div>
+                    </div>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Live Search Sources */}
         {sources && sources.length > 0 && (
-          <div className="bg-secondary/20 rounded-xl p-4 border border-border">
+          <div className="bg-secondary/20 rounded-xl p-4 border border-border mt-4">
             <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse"></span>
-              Live Search Sources
+              Clinical & Verified Sources
             </h4>
-            <ul className="space-y-2">
+            <ul className="space-y-2 mb-4">
               {sources.map((source, idx) => {
-                // Quick heuristic to format Reddit links nicer
                 let displayName = source
-                try {
-                  const url = new URL(source)
-                  if (url.hostname.includes('reddit.com')) {
-                    const parts = url.pathname.split('/')
-                    const subredditIndex = parts.indexOf('r')
-                    if (subredditIndex !== -1 && parts.length > subredditIndex + 1) {
-                      displayName = `r/${parts[subredditIndex + 1]}`
+                let href = source
+
+                // Handle Gemini outputting raw subreddit names like "r/sleep"
+                if (source.startsWith('r/')) {
+                  displayName = source
+                  href = `https://www.reddit.com/${source}`
+                } else {
+                  href = source.startsWith('http') ? source : `https://${source}`
+                  // Nicely format full URLs
+                  try {
+                    const url = new URL(href)
+                    if (url.hostname.includes('reddit.com')) {
+                      return null // Hide Reddit links from here since we have the dedicated live section above
                     } else {
-                      displayName = 'Reddit'
+                      displayName = url.hostname.replace('www.', '')
                     }
-                  } else {
-                    displayName = url.hostname.replace('www.', '')
-                  }
-                } catch(e) {} // Ignore invalid URLs
+                  } catch(e) {} 
+                }
+
+                if (!displayName) return null;
 
                 return (
-                  <li key={idx} className="text-sm">
+                  <li key={idx} className="text-sm truncate">
                     <a 
-                      href={source.startsWith('http') ? source : `https://${source}`} 
+                      href={href} 
                       target="_blank" 
                       rel="noopener noreferrer"
                       className="text-cyan-400 hover:text-cyan-300 hover:underline flex items-center gap-1.5 transition-colors"
+                      title={href}
                     >
-                      <Bookmark className="w-3 h-3 opacity-50" />
+                      <Bookmark className="w-3 h-3 opacity-50 shrink-0" />
                       {displayName}
                     </a>
                   </li>

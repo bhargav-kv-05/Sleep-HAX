@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { logSleepAction } from './actions'
 import { createClient } from '@/utils/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -18,12 +19,21 @@ export default function ProfileClient({
   initialHack?: string
 }) {
   const [activeTab, setActiveTab] = useState<'journal' | 'settings'>('journal')
+  const router = useRouter()
   
   // Settings State
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [passwordStrength, setPasswordStrength] = useState<'weak'|'moderate'|'strong'|''>('')
   const [settingsLoading, setSettingsLoading] = useState(false)
   const [settingsMessage, setSettingsMessage] = useState<{type: 'success'|'error', text: string} | null>(null)
+  
+  // Profile State
+  const [name, setName] = useState(initialName)
+  const [profileLoading, setProfileLoading] = useState(false)
+  const [profileMessage, setProfileMessage] = useState<{type: 'success'|'error', text: string} | null>(null)
   
   // Journal State
   const [logLoading, setLogLoading] = useState(false)
@@ -36,9 +46,39 @@ export default function ProfileClient({
 
   const supabase = createClient()
 
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const pwd = e.target.value
+    setPassword(pwd)
+    
+    if (!pwd) {
+      setPasswordStrength('')
+      return
+    }
+    
+    let strength = 0
+    if (pwd.length >= 8) strength += 1
+    if (pwd.match(/[a-z]/) && pwd.match(/[A-Z]/)) strength += 1
+    if (pwd.match(/\\d/)) strength += 1
+    if (pwd.match(/[^a-zA-Z\\d]/)) strength += 1
+
+    if (strength < 2) setPasswordStrength('weak')
+    else if (strength === 2 || strength === 3) setPasswordStrength('moderate')
+    else setPasswordStrength('strong')
+  }
+
   const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!password) return
+    if (!password || !confirmPassword) return
+
+    if (password !== confirmPassword) {
+      setSettingsMessage({ type: 'error', text: 'Passwords do not match.' })
+      return
+    }
+
+    if (passwordStrength === 'weak') {
+      setSettingsMessage({ type: 'error', text: 'Please choose a stronger password.' })
+      return
+    }
 
     setSettingsLoading(true)
     setSettingsMessage(null)
@@ -50,8 +90,30 @@ export default function ProfileClient({
     } else {
       setSettingsMessage({ type: 'success', text: 'Password successfully updated!' })
       setPassword('')
+      setConfirmPassword('')
+      setPasswordStrength('')
     }
     setSettingsLoading(false)
+  }
+
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!name.trim()) return
+
+    setProfileLoading(true)
+    setProfileMessage(null)
+
+    const { error } = await supabase.auth.updateUser({ 
+      data: { full_name: name } 
+    })
+    
+    if (error) {
+      setProfileMessage({ type: 'error', text: error.message })
+    } else {
+      setProfileMessage({ type: 'success', text: 'Profile successfully updated!' })
+      router.refresh()
+    }
+    setProfileLoading(false)
   }
 
   const handleLogSleep = async (formData: FormData) => {
@@ -97,7 +159,7 @@ export default function ProfileClient({
       {/* Sidebar Navigation */}
       <div className="w-full md:w-64 bg-slate-950/50 p-6 border-b md:border-b-0 md:border-r border-slate-800 flex flex-col gap-2">
         <div className="mb-6 px-2">
-          <h2 className="text-xl font-bold text-white">{initialName}</h2>
+          <h2 className="text-xl font-bold text-white">{name}</h2>
           <p className="text-sm text-slate-400">Sleep Profile</p>
         </div>
 
@@ -272,19 +334,50 @@ export default function ProfileClient({
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div>
               <h3 className="text-2xl font-bold text-white mb-2">Account Settings</h3>
-              <p className="text-slate-400 text-sm">Manage your security and preferences.</p>
+              <p className="text-slate-400 text-sm">Manage your public profile and security.</p>
             </div>
 
             <div className="bg-slate-950/50 border border-slate-800 p-6 rounded-xl space-y-6">
-              <h4 className="text-lg font-medium text-white border-b border-slate-800 pb-2">Change Password</h4>
+              <h4 className="text-lg font-medium text-white border-b border-slate-800 pb-2">Public Profile</h4>
+              <form onSubmit={handleUpdateProfile} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">Full Name</label>
+                  <Input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                    placeholder="Your display name"
+                    className="bg-slate-900 border-slate-800 text-white placeholder-slate-500 h-12"
+                  />
+                </div>
+
+                {profileMessage && (
+                  <div className={`p-4 rounded-xl text-sm font-medium border flex items-center gap-2 ${profileMessage.type === 'success' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
+                    {profileMessage.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+                    {profileMessage.text}
+                  </div>
+                )}
+
+                <div className="flex justify-end">
+                  <Button type="submit" disabled={profileLoading} className="h-11 bg-cyan-600 hover:bg-cyan-500 text-white px-8 rounded-lg font-semibold">
+                    {profileLoading ? 'Saving...' : 'Save Changes'}
+                  </Button>
+                </div>
+              </form>
+            </div>
+
+            <div className="bg-slate-950/50 border border-slate-800 p-6 rounded-xl space-y-6">
+              <h4 className="text-lg font-medium text-white border-b border-slate-800 pb-2">Security</h4>
               <form onSubmit={handleUpdatePassword} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">New Password</label>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">Password</label>
+                  <p className="text-xs text-slate-500 mb-3">Set or change a secure password for your account.</p>
                   <div className="relative">
                     <Input
                       type={showPassword ? "text" : "password"}
                       value={password}
-                      onChange={(e) => setPassword(e.target.value)}
+                      onChange={handlePasswordChange}
                       required
                       placeholder="••••••••"
                       className="bg-slate-900 border-slate-800 text-white placeholder-slate-500 h-12 pr-10"
@@ -297,6 +390,40 @@ export default function ProfileClient({
                       {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                     </button>
                   </div>
+                  
+                  {password && (
+                    <div className="flex items-center gap-2 mt-3">
+                      <div className="flex gap-1 flex-1 h-1.5">
+                        <div className={`flex-1 rounded-full transition-colors ${passwordStrength === 'weak' ? 'bg-red-500' : passwordStrength === 'moderate' ? 'bg-yellow-500' : passwordStrength === 'strong' ? 'bg-emerald-500' : 'bg-slate-800'}`}></div>
+                        <div className={`flex-1 rounded-full transition-colors ${passwordStrength === 'moderate' ? 'bg-yellow-500' : passwordStrength === 'strong' ? 'bg-emerald-500' : 'bg-slate-800'}`}></div>
+                        <div className={`flex-1 rounded-full transition-colors ${passwordStrength === 'strong' ? 'bg-emerald-500' : 'bg-slate-800'}`}></div>
+                      </div>
+                      <span className={`text-xs font-medium w-16 text-right ${passwordStrength === 'weak' ? 'text-red-500' : passwordStrength === 'moderate' ? 'text-yellow-500' : 'text-emerald-500'}`}>
+                        {passwordStrength.charAt(0).toUpperCase() + passwordStrength.slice(1)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">Confirm Password</label>
+                  <div className="relative">
+                    <Input
+                      type={showConfirmPassword ? "text" : "password"}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      required
+                      placeholder="••••••••"
+                      className="bg-slate-900 border-slate-800 text-white placeholder-slate-500 h-12 pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-cyan-500"
+                    >
+                      {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
                 </div>
 
                 {settingsMessage && (
@@ -306,9 +433,11 @@ export default function ProfileClient({
                   </div>
                 )}
 
-                <Button type="submit" disabled={settingsLoading} className="h-12 bg-slate-800 hover:bg-slate-700 text-white w-full sm:w-auto px-8">
-                  {settingsLoading ? 'Updating...' : 'Update Password'}
-                </Button>
+                <div className="flex justify-end">
+                  <Button type="submit" disabled={settingsLoading} className="h-11 bg-slate-800 hover:bg-slate-700 text-white px-8 rounded-lg font-semibold">
+                    {settingsLoading ? 'Saving...' : 'Set Password'}
+                  </Button>
+                </div>
               </form>
             </div>
           </div>
