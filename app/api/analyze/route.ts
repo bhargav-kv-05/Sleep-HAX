@@ -20,7 +20,8 @@ export async function POST(request: Request) {
             tools: [{ googleSearch: {} }]
         });
 
-          You are the SleepHAX Clinical Analysis Engine. 
+        const systemPrompt = `
+      You are the SleepHAX Clinical Analysis Engine. 
       Use Google Search to find current clinical consensus and recent discussions on Reddit (r/sleep or r/insomnia) to evaluate the following sleep hack: "${hack}".
       You must respond ONLY with a valid JSON object matching this exact schema. 
       {
