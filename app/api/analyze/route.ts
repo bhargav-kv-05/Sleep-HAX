@@ -20,8 +20,7 @@ export async function POST(request: Request) {
             tools: [{ googleSearch: {} }]
         });
 
-        const systemPrompt = `
-      You are the SleepHAX Clinical Analysis Engine. 
+          You are the SleepHAX Clinical Analysis Engine. 
       Use Google Search to find current clinical consensus and recent discussions on Reddit (r/sleep or r/insomnia) to evaluate the following sleep hack: "${hack}".
       You must respond ONLY with a valid JSON object matching this exact schema. 
       {
@@ -30,7 +29,15 @@ export async function POST(request: Request) {
         "safetyScore": "Number (1 to 10, 10 being perfectly safe)",
         "efficacyScore": "Number (1 to 10, 10 being highly effective)",
         "verdict": "String (A 2-3 sentence objective, clinical summary of risks and benefits based on your search)",
-        "sources": ["Array of Strings (The ACTUAL exact URLs of the Reddit threads or clinical sites you sourced this from. Do NOT use vertexaisearch.cloud.google.com URLs. You must find and use the original source URLs, e.g., 'https://www.reddit.com/r/sleep/comments/xyz' or 'https://www.sleepfoundation.org/article'.)"]
+        "sources": ["Array of Strings (The ACTUAL exact URLs of clinical sites or general resources. Do NOT use vertexaisearch.cloud.google.com URLs.)"],
+        "liveRedditThreads": [
+          {
+            "title": "String (The title of the Reddit post)",
+            "subreddit": "String (e.g. r/sleep)",
+            "url": "String (The exact URL of the Reddit post)",
+            "upvotes": "Number (Estimate upvotes or use 0)"
+          }
+        ]
       }
     `;
 
@@ -84,26 +91,8 @@ export async function POST(request: Request) {
                 .filter((value: string, index: number, self: string[]) => self.indexOf(value) === index);
         }
 
-        // Fetch guaranteed live Reddit threads using Reddit's public API
-        try {
-            const query = encodeURIComponent(`${hack} sleep`);
-            const redditUrl = `https://www.reddit.com/search.json?q=${query}&limit=3&sort=relevance`;
-            const redditRes = await fetch(redditUrl, { headers: { 'User-Agent': 'SleepHAX/1.0' } });
-            
-            if (redditRes.ok) {
-                const redditData = await redditRes.json();
-                if (redditData?.data?.children) {
-                    data.liveRedditThreads = redditData.data.children.map((child: any) => ({
-                        title: child.data.title,
-                        subreddit: child.data.subreddit_name_prefixed,
-                        url: `https://www.reddit.com${child.data.permalink}`,
-                        upvotes: child.data.ups
-                    }));
-                }
-            }
-        } catch (e) {
-            console.error("Failed to fetch live Reddit threads", e);
-        }
+        // Note: We removed the raw Reddit API fetch because Reddit blocks Vercel AWS IP addresses.
+        // We now rely purely on Gemini's Google Search capabilities to populate liveRedditThreads.
 
         return NextResponse.json(data);
 
