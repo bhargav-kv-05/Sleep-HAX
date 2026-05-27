@@ -30,15 +30,7 @@ export async function POST(request: Request) {
         "safetyScore": "Number (1 to 10, 10 being perfectly safe)",
         "efficacyScore": "Number (1 to 10, 10 being highly effective)",
         "verdict": "String (A 2-3 sentence objective, clinical summary of risks and benefits based on your search)",
-        "sources": ["Array of Strings (The ACTUAL exact URLs of clinical sites or general resources. Do NOT use vertexaisearch.cloud.google.com URLs.)"],
-        "liveRedditThreads": [
-          {
-            "title": "String (The title of the Reddit post)",
-            "subreddit": "String (e.g. r/sleep)",
-            "url": "String (The exact URL of the Reddit post)",
-            "upvotes": "Number (Estimate upvotes or use 0)"
-          }
-        ]
+        "sources": ["Array of Strings (The ACTUAL exact URLs of clinical sites or general resources. Do NOT use vertexaisearch.cloud.google.com URLs.)"]
       }
     `;
 
@@ -92,8 +84,29 @@ export async function POST(request: Request) {
                 .filter((value: string, index: number, self: string[]) => self.indexOf(value) === index);
         }
 
-        // Note: We removed the raw Reddit API fetch because Reddit blocks Vercel AWS IP addresses.
-        // We now rely purely on Gemini's Google Search capabilities to populate liveRedditThreads.
+        // Fetch guaranteed live Reddit threads using Reddit's public API via proxy
+        try {
+            const query = encodeURIComponent(`${hack} sleep`);
+            // We route the request through a proxy to bypass Reddit blocking Vercel's IP addresses
+            const targetUrl = `https://www.reddit.com/search.json?q=${query}&limit=3&sort=relevance`;
+            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+            
+            const redditRes = await fetch(proxyUrl, { headers: { 'User-Agent': 'SleepHAX/1.0' } });
+            
+            if (redditRes.ok) {
+                const redditData = await redditRes.json();
+                if (redditData?.data?.children) {
+                    data.liveRedditThreads = redditData.data.children.map((child: any) => ({
+                        title: child.data.title,
+                        subreddit: child.data.subreddit_name_prefixed,
+                        url: `https://www.reddit.com${child.data.permalink}`,
+                        upvotes: child.data.ups
+                    }));
+                }
+            }
+        } catch (e) {
+            console.error("Failed to fetch live Reddit threads", e);
+        }
 
         return NextResponse.json(data);
 
