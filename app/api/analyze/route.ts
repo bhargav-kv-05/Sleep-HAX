@@ -47,23 +47,50 @@ export async function POST(request: Request) {
         // Extract and resolve exact URLs from grounding metadata
         const groundingMetadata = response.candidates?.[0]?.groundingMetadata;
         let resolvedSources: string[] = [];
+        let liveRedditThreads: any[] = [];
 
         if (groundingMetadata?.groundingChunks) {
             // Get all the raw redirect URIs
-            const redirectUris = groundingMetadata.groundingChunks
-                .map((chunk: any) => chunk.web?.uri)
+            const webChunks = groundingMetadata.groundingChunks
+                .map((chunk: any) => chunk.web)
                 .filter(Boolean);
 
-            // Resolve them server-side to bypass client tracking/adblocker issues 
-            // and get the exact, deep-linked original URL
-            const resolvedPromises = redirectUris.map(async (uri: string) => {
-                try {
-                    const res = await fetch(uri, { method: 'HEAD', redirect: 'follow' });
-                    return res.url;
-                } catch {
-                    return null;
-                }
+            const redirectUris = webChunks.map((w: any) => w.uri);
+
+            // Extract verified Reddit threads directly from Google Search results
+            // This completely prevents AI hallucination because these are raw Google Search URLs
+            const redditChunks = webChunks.filter((w: any) => w.uri && w.uri.includes('reddit.com/r/'));
+            
+            // Map the raw Google Search results to our UI format
+            liveRedditThreads = redditChunks.map((chunk: any) => {
+                // Extract subreddit name from URL (e.g., https://www.reddit.com/r/sleep/comments/...)
+                const match = chunk.uri.match(/reddit\.com\/(r\/[^/]+)/i);
+                const subreddit = match ? match[1] : 'r/reddit';
+                
+                return {
+                    title: chunk.title || 'Reddit Discussion',
+                    subreddit: subreddit,
+                    url: chunk.uri,
+                    upvotes: 0 // Google Search doesn't provide live upvotes, so we omit them to stay accurate
+                };
             });
+
+            // Remove duplicate reddit threads by URL
+            liveRedditThreads = liveRedditThreads.filter((value, index, self) => 
+                index === self.findIndex((t) => t.url === value.url)
+            ).slice(0, 3); // Keep top 3
+
+            // Resolve clinical sources server-side to bypass client tracking/adblocker issues
+            const resolvedPromises = redirectUris
+                .filter((uri: string) => !uri.includes('reddit.com')) // exclude reddit from clinical sources
+                .map(async (uri: string) => {
+                    try {
+                        const res = await fetch(uri, { method: 'HEAD', redirect: 'follow' });
+                        return res.url;
+                    } catch {
+                        return null;
+                    }
+                });
 
             const results = await Promise.all(resolvedPromises);
             resolvedSources = results
@@ -71,41 +98,21 @@ export async function POST(request: Request) {
                 // Remove duplicates
                 .filter((value, index, self) => self.indexOf(value) === index) as string[];
             
-            // Limit to top 5 sources to reduce clutter and probability of dead links
+            // Limit to top 5 sources to reduce clutter
             resolvedSources = resolvedSources.slice(0, 5);
         }
 
         if (resolvedSources.length > 0) {
             data.sources = resolvedSources;
         } else if (data.sources && Array.isArray(data.sources)) {
-            // Fallback if grounding extraction completely failed
             data.sources = data.sources
                 .filter((s: string) => !s.includes('vertexaisearch'))
                 .filter((value: string, index: number, self: string[]) => self.indexOf(value) === index);
         }
 
-        // Fetch guaranteed live Reddit threads using Reddit's public API via proxy
-        try {
-            const query = encodeURIComponent(`${hack} sleep`);
-            // We route the request through a proxy to bypass Reddit blocking Vercel's IP addresses
-            const targetUrl = `https://www.reddit.com/search.json?q=${query}&limit=3&sort=relevance`;
-            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
-            
-            const redditRes = await fetch(proxyUrl, { headers: { 'User-Agent': 'SleepHAX/1.0' } });
-            
-            if (redditRes.ok) {
-                const redditData = await redditRes.json();
-                if (redditData?.data?.children) {
-                    data.liveRedditThreads = redditData.data.children.map((child: any) => ({
-                        title: child.data.title,
-                        subreddit: child.data.subreddit_name_prefixed,
-                        url: `https://www.reddit.com${child.data.permalink}`,
-                        upvotes: child.data.ups
-                    }));
-                }
-            }
-        } catch (e) {
-            console.error("Failed to fetch live Reddit threads", e);
+        // Attach the verified Reddit threads to the payload
+        if (liveRedditThreads.length > 0) {
+            data.liveRedditThreads = liveRedditThreads;
         }
 
         return NextResponse.json(data);
