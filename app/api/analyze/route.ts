@@ -80,23 +80,11 @@ export async function POST(request: Request) {
                 index === self.findIndex((t) => t.url === value.url)
             ).slice(0, 3); // Keep top 3
 
-            // Resolve clinical sources server-side to bypass client tracking/adblocker issues
-            const resolvedPromises = redirectUris
+            // We removed the slow server-side HEAD requests to drastically speed up response time.
+            // Modern Gemini Grounding URLs are direct links, so we can use them immediately!
+            resolvedSources = redirectUris
                 .filter((uri: string) => !uri.includes('reddit.com')) // exclude reddit from clinical sources
-                .map(async (uri: string) => {
-                    try {
-                        const res = await fetch(uri, { method: 'HEAD', redirect: 'follow' });
-                        return res.url;
-                    } catch {
-                        return null;
-                    }
-                });
-
-            const results = await Promise.all(resolvedPromises);
-            resolvedSources = results
-                .filter(Boolean)
-                // Remove duplicates
-                .filter((value, index, self) => self.indexOf(value) === index) as string[];
+                .filter((value: string, index: number, self: string[]) => self.indexOf(value) === index) as string[];
             
             // Limit to top 5 sources to reduce clutter
             resolvedSources = resolvedSources.slice(0, 5);
