@@ -31,7 +31,12 @@ export async function POST(request: Request) {
         "safetyScore": "Number (1 to 10, 10 being perfectly safe)",
         "efficacyScore": "Number (1 to 10, 10 being highly effective)",
         "verdict": "String (A 2-3 sentence objective, clinical summary of risks and benefits based on your search)",
-        "sources": ["Array of Strings (The ACTUAL exact URLs of clinical sites or general resources. Do NOT use vertexaisearch.cloud.google.com URLs.)"],
+        "sources": [
+          {
+            "title": "String (The exact title of the clinical source or article)",
+            "url": "String (The URL of the source)"
+          }
+        ],
         "liveRedditThreads": [
           {
             "title": "String (The exact title of the relevant Reddit discussion)",
@@ -52,13 +57,30 @@ export async function POST(request: Request) {
         // Parse the JSON string from Gemini into a real JS object
         const data = JSON.parse(jsonText);
 
-        // We don't use groundingMetadata because it returns slow, ugly vertexaisearch redirect URLs
-        // Instead, we rely purely on the JSON 'sources' array from Gemini for clinical links
-        if (data.sources && Array.isArray(data.sources)) {
-            data.sources = data.sources
-                .filter((s: string) => !s.includes('vertexaisearch'))
-                .filter((value: string, index: number, self: string[]) => self.indexOf(value) === index)
-                .slice(0, 5);
+        // Completely eliminate AI hallucinations for clinical URLs by relying PURELY on Google's Grounding Metadata.
+        // We map the raw web chunks to {title, url} objects for the UI to render beautifully.
+        const groundingMetadata = response.candidates?.[0]?.groundingMetadata;
+        let resolvedSources: {title: string, url: string}[] = [];
+
+        if (groundingMetadata?.groundingChunks) {
+            const webChunks = groundingMetadata.groundingChunks
+                .map((chunk: any) => chunk.web)
+                .filter(Boolean);
+
+            resolvedSources = webChunks
+                .filter((w: any) => w.uri && !w.uri.includes('reddit.com'))
+                .map((w: any) => ({
+                    title: w.title,
+                    url: w.uri
+                }));
+            
+            // Deduplicate by title to avoid clutter
+            resolvedSources = resolvedSources.filter((v, i, a) => a.findIndex(t => (t.title === v.title)) === i).slice(0, 5);
+        }
+        
+        // If Google found verified links, use them. Otherwise, leave it undefined.
+        if (resolvedSources.length > 0) {
+            data.sources = resolvedSources;
         }
 
         // Fix AI Hallucinations for Reddit Links:
