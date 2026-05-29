@@ -1,0 +1,12 @@
+
+> my-project@0.1.0 dev
+> next dev
+
+▲ Next.js 16.2.6 (Turbopack)
+- Local:         http://localhost:3001
+- Network:       http://192.168.1.16:3001
+- Environments: .env.local
+✓ Ready in 303ms
+
+ POST /api/analyze 200 in 23.5s (next.js: 92ms, application-code: 23.4s)
+[?25h

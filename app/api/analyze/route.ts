@@ -22,7 +22,8 @@ export async function POST(request: Request) {
 
         const systemPrompt = `
       You are the SleepHAX Clinical Analysis Engine. 
-      Use Google Search to find current clinical consensus and recent discussions on Reddit (r/sleep or r/insomnia) to evaluate the following sleep hack: "${hack}".
+      Use Google Search to find current clinical consensus AND recent discussions on Reddit (r/sleep or r/insomnia) to evaluate the following sleep hack: "${hack}".
+      CRITICAL INSTRUCTION: You MUST find and include at least 2-3 relevant Reddit threads in the liveRedditThreads array. Do NOT omit this array.
       You must respond ONLY with a valid JSON object matching this exact schema. 
       {
         "title": "String (The formalized name of the sleep hack)",
@@ -30,7 +31,14 @@ export async function POST(request: Request) {
         "safetyScore": "Number (1 to 10, 10 being perfectly safe)",
         "efficacyScore": "Number (1 to 10, 10 being highly effective)",
         "verdict": "String (A 2-3 sentence objective, clinical summary of risks and benefits based on your search)",
-        "sources": ["Array of Strings (The ACTUAL exact URLs of clinical sites or general resources. Do NOT use vertexaisearch.cloud.google.com URLs.)"]
+        "sources": ["Array of Strings (The ACTUAL exact URLs of clinical sites or general resources. Do NOT use vertexaisearch.cloud.google.com URLs.)"],
+        "liveRedditThreads": [
+          {
+            "title": "String (The exact title of the relevant Reddit discussion)",
+            "subreddit": "String (Must be formatted like 'r/sleep')",
+            "upvotes": "Number (Estimate upvotes or use 0)"
+          }
+        ]
       }
     `;
 
@@ -44,63 +52,29 @@ export async function POST(request: Request) {
         // Parse the JSON string from Gemini into a real JS object
         const data = JSON.parse(jsonText);
 
-        // Extract and resolve exact URLs from grounding metadata
-        const groundingMetadata = response.candidates?.[0]?.groundingMetadata;
-        let resolvedSources: string[] = [];
-        let liveRedditThreads: any[] = [];
-
-        if (groundingMetadata?.groundingChunks) {
-            // Get all the raw redirect URIs
-            const webChunks = groundingMetadata.groundingChunks
-                .map((chunk: any) => chunk.web)
-                .filter(Boolean);
-
-            const redirectUris = webChunks.map((w: any) => w.uri);
-
-            // Extract verified Reddit threads directly from Google Search results
-            // This completely prevents AI hallucination because these are raw Google Search URLs
-            const redditChunks = webChunks.filter((w: any) => w.uri && w.uri.includes('reddit.com/r/'));
-            
-            // Map the raw Google Search results to our UI format
-            liveRedditThreads = redditChunks.map((chunk: any) => {
-                // Extract subreddit name from URL (e.g., https://www.reddit.com/r/sleep/comments/...)
-                const match = chunk.uri.match(/reddit\.com\/(r\/[^/]+)/i);
-                const subreddit = match ? match[1] : 'r/reddit';
-                
-                return {
-                    title: chunk.title || 'Reddit Discussion',
-                    subreddit: subreddit,
-                    url: chunk.uri,
-                    upvotes: 0 // Google Search doesn't provide live upvotes, so we omit them to stay accurate
-                };
-            });
-
-            // Remove duplicate reddit threads by URL
-            liveRedditThreads = liveRedditThreads.filter((value, index, self) => 
-                index === self.findIndex((t) => t.url === value.url)
-            ).slice(0, 3); // Keep top 3
-
-            // We removed the slow server-side HEAD requests to drastically speed up response time.
-            // Modern Gemini Grounding URLs are direct links, so we can use them immediately!
-            resolvedSources = redirectUris
-                .filter((uri: string) => !uri.includes('reddit.com')) // exclude reddit from clinical sources
-                .filter((value: string, index: number, self: string[]) => self.indexOf(value) === index) as string[];
-            
-            // Limit to top 5 sources to reduce clutter
-            resolvedSources = resolvedSources.slice(0, 5);
-        }
-
-        if (resolvedSources.length > 0) {
-            data.sources = resolvedSources;
-        } else if (data.sources && Array.isArray(data.sources)) {
+        // We don't use groundingMetadata because it returns slow, ugly vertexaisearch redirect URLs
+        // Instead, we rely purely on the JSON 'sources' array from Gemini for clinical links
+        if (data.sources && Array.isArray(data.sources)) {
             data.sources = data.sources
                 .filter((s: string) => !s.includes('vertexaisearch'))
-                .filter((value: string, index: number, self: string[]) => self.indexOf(value) === index);
+                .filter((value: string, index: number, self: string[]) => self.indexOf(value) === index)
+                .slice(0, 5);
         }
 
-        // Attach the verified Reddit threads to the payload
-        if (liveRedditThreads.length > 0) {
-            data.liveRedditThreads = liveRedditThreads;
+        // Fix AI Hallucinations for Reddit Links:
+        // Instead of asking the AI to guess the URL (which causes 404s) or dealing with Reddit's IP blocks,
+        // we dynamically generate a bulletproof Reddit Search URL for the exact title the AI found.
+        if (data.liveRedditThreads && Array.isArray(data.liveRedditThreads)) {
+            data.liveRedditThreads = data.liveRedditThreads.map((thread: any) => {
+                const sub = thread.subreddit.startsWith('r/') ? thread.subreddit : `r/${thread.subreddit}`;
+                return {
+                    title: thread.title,
+                    subreddit: sub,
+                    upvotes: thread.upvotes || 0,
+                    // Bulletproof link: Searches that specific subreddit for the exact discussion title
+                    url: `https://www.reddit.com/${sub}/search/?q=${encodeURIComponent(thread.title)}&restrict_sr=1`
+                };
+            });
         }
 
         return NextResponse.json(data);
